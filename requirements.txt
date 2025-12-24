@@ -1,0 +1,9 @@
+streamlit
+streamlit-webrtc
+mediapipe==0.10.9
+opencv-python-headless
+numpy
+pandas
+joblib
+scikit-learn
+av
