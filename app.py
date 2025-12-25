@@ -7,16 +7,12 @@ import numpy as np
 import av
 from streamlit_webrtc import webrtc_streamer, VideoProcessorBase
 
-# โหลดโมเดล
 model = joblib.load("volleyball_model.pkl")
 
 mp_pose = mp.solutions.pose
 mp_drawing = mp.solutions.drawing_utils
 
-st.title("🏐 Volleyball Pose Detection (Realtime Camera Switch)")
-
-camera_facing = st.radio("เลือกกล้อง", ("กล้องหน้า", "กล้องหลัง"))
-facing_mode = "user" if camera_facing == "กล้องหน้า" else "environment"
+st.title("🏐 Volleyball Pose Detection")
 
 class PoseDetector(VideoProcessorBase):
     def __init__(self):
@@ -54,10 +50,10 @@ class PoseDetector(VideoProcessorBase):
         return av.VideoFrame.from_ndarray(img, format="bgr24")
 
 webrtc_streamer(
-    key=f"volleyball-{facing_mode}",
+    key="volleyball",   # key คงที่
     video_processor_factory=PoseDetector,
     media_stream_constraints={
-        "video": {"facingMode": facing_mode},
+        "video": {"facingMode": "user"},  # 👈 กล้องหน้า
         "audio": False
     }
 )
