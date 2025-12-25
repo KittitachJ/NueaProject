@@ -3,7 +3,5 @@ streamlit-webrtc
 mediapipe==0.10.31
 opencv-python-headless
 numpy
-pandas
-joblib
 scikit-learn
-av
+joblib
