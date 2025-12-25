@@ -50,10 +50,19 @@ class PoseDetector(VideoProcessorBase):
         return av.VideoFrame.from_ndarray(img, format="bgr24")
 
 webrtc_streamer(
-    key="volleyball",   # key คงที่
+    key="volleyball",
     video_processor_factory=PoseDetector,
     media_stream_constraints={
-        "video": {"facingMode": "user"},  # 👈 กล้องหน้า
+        "video": True,
         "audio": False
+    },
+    rtc_configuration={
+        "iceServers": [
+            {"urls": ["stun:stun.l.google.com:19302"]},
+            {"urls": ["stun:stun1.l.google.com:19302"]},
+            {"urls": ["stun:stun2.l.google.com:19302"]}
+        ]
     }
 )
+
+
