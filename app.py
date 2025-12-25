@@ -1,28 +1,32 @@
 import streamlit as st
 import cv2
-import mediapipe as mp
+import numpy as np
 import pandas as pd
 import joblib
-import numpy as np
+
 from streamlit_webrtc import webrtc_streamer, VideoProcessorBase
 
-# โหลดโมเดล (cache)
+# --- MediaPipe (Cloud-safe import) ---
+import mediapipe as mp
+from mediapipe.python.solutions import pose as mp_pose
+from mediapipe.python.solutions import drawing_utils as mp_drawing
+
+
+# -------------------------------
+# Load ML model (cached)
+# -------------------------------
 @st.cache_resource
 def load_model():
     return joblib.load("volleyball_model.pkl")
 
+
 model = load_model()
 
-mp_pose = mp.solutions.pose
-mp_drawing = mp.solutions.drawing_utils
 
-# UI
-st.title("🏐 Volleyball Pose Detection (Realtime Camera Switch)")
-
-camera_facing = st.radio("เลือกกล้อง", ("กล้องหน้า", "กล้องหลัง"))
-facing_mode = "user" if camera_facing == "กล้องหน้า" else "environment"
-
-class PoseDetector(VideoProcessorBase):
+# -------------------------------
+# Video Processor
+# -------------------------------
+class PoseVideoProcessor(VideoProcessorBase):
     def __init__(self):
         self.pose = mp_pose.Pose(
             min_detection_confidence=0.5,
@@ -31,36 +35,56 @@ class PoseDetector(VideoProcessorBase):
 
     def recv(self, frame):
         img = frame.to_ndarray(format="bgr24")
-        image_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        results = self.pose.process(image_rgb)
+        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+        results = self.pose.process(img_rgb)
 
         if results.pose_landmarks:
-            keypoints = []
-            for lm in results.pose_landmarks.landmark:
-                keypoints.extend([lm.x, lm.y])
-
-            columns = [f"{axis}{i}" for i in range(33) for axis in ["x", "y"]]
-            X_new = pd.DataFrame([keypoints], columns=columns)
-
-            prediction = model.predict(X_new)[0]
-            text = "Yes" if prediction == "under_correct" else "No"
-            color = (0, 255, 0) if prediction == "under_correct" else (0, 0, 255)
-
             mp_drawing.draw_landmarks(
-                img, results.pose_landmarks, mp_pose.POSE_CONNECTIONS
-            )
-            cv2.putText(
-                img, text, (30, 60),
-                cv2.FONT_HERSHEY_SIMPLEX, 2, color, 3
+                img,
+                results.pose_landmarks,
+                mp_pose.POSE_CONNECTIONS
             )
 
-        return frame.from_ndarray(img, format="bgr24")
+            # --- Extract landmarks ---
+            landmarks = []
+            for lm in results.pose_landmarks.landmark:
+                landmarks.extend([lm.x, lm.y, lm.z, lm.visibility])
+
+            # --- Predict (if feature size matches) ---
+            try:
+                X = np.array(landmarks).reshape(1, -1)
+                pred = model.predict(X)[0]
+
+                cv2.putText(
+                    img,
+                    f"Action: {pred}",
+                    (20, 40),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    1,
+                    (0, 255, 0),
+                    2
+                )
+            except Exception:
+                pass
+
+        return img
+
+
+# -------------------------------
+# Streamlit UI
+# -------------------------------
+st.set_page_config(page_title="Volleyball Pose Detection", layout="centered")
+
+st.title("🏐 Volleyball Pose Detection")
+st.write("ใช้ MediaPipe + Machine Learning ตรวจจับท่าทางจากกล้อง")
 
 webrtc_streamer(
-    key=f"volleyball-{facing_mode}",
-    video_processor_factory=PoseDetector,
+    key="pose-detection",
+    video_processor_factory=PoseVideoProcessor,
     media_stream_constraints={
-        "video": {"facingMode": facing_mode},
+        "video": True,
         "audio": False
-    }
+    },
+    async_processing=True
 )
